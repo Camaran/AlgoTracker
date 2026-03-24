@@ -1,0 +1,24 @@
+# ══════════════════════════════════════════════
+# requirements.txt - Motor de Métricas
+# ══════════════════════════════════════════════
+
+# Core
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Base de datos
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0    # Driver PostgreSQL
+
+# FastAPI
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Automatización (opcional pero recomendado)
+apscheduler>=3.10.0
+
+# Variables de entorno
+python-dotenv>=1.0.0
+
+# Para tests
+pytest>=7.4.0

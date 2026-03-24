@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field, validator
 from datetime import datetime
 from typing import Optional
@@ -6,6 +6,10 @@ import psycopg2
 import psycopg2.extras
 import logging
 import traceback
+
+# Motor de métricas
+from metrics.routes import router as metrics_router
+from metrics.scheduler import on_new_trade
 
 # ─────────────────────────────────────────────
 # LOGGING
@@ -82,17 +86,21 @@ class TradeIn(BaseModel):
 app = FastAPI(
     title="AlgoTracker API",
     description="Recibe trades desde MT5 y los guarda en PostgreSQL",
-    version="0.1.0"
+    version="0.2.0"
 )
+
+# Registrar endpoints de métricas: /metrics/summary, /metrics/{magic}, etc.
+app.include_router(metrics_router, prefix="/metrics", tags=["metrics"])
 
 
 # ─────────────────────────────────────────────
 # ENDPOINT PRINCIPAL
 # ─────────────────────────────────────────────
-@app.post("/trade", status_code=201)  # 201 = Created (más correcto que 200 para inserts)
-def receive_trade(trade: TradeIn):
+@app.post("/trade", status_code=201)
+def receive_trade(trade: TradeIn, background_tasks: BackgroundTasks):
     """
     Recibe un trade cerrado desde MT5 y lo persiste en trades_raw.
+    Luego actualiza las métricas del EA en background (sin bloquear la respuesta).
     """
     logger.info(f"Trade recibido | ticket={trade.ticket} | symbol={trade.symbol} | profit={trade.profit}")
 
@@ -122,6 +130,10 @@ def receive_trade(trade: TradeIn):
         conn.commit()
 
         logger.info(f"Trade guardado correctamente | id={new_id} | ticket={trade.ticket}")
+
+        # Actualizar métricas del EA en background (no bloquea la respuesta a MT5)
+        if trade.magic_number:
+            background_tasks.add_task(on_new_trade, trade.magic_number)
 
         return {
             "status": "ok",
