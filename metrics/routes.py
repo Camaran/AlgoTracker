@@ -41,15 +41,18 @@ async def get_summary(
     summary = []
     for magic, df in grouped.items():
         metrics = compute_all_metrics(df)
+        comments = df["comment"].dropna()
+        ea_name = comments.iloc[0] if len(comments) > 0 else None
         summary.append({
-            "magic_number": magic,
-            "total_trades": metrics["trade_count"],
-            "net_profit":   metrics["summary"]["total_net_profit"],
-            "win_rate":     metrics["summary"]["win_rate_pct"],
-            "profit_factor": metrics["summary"]["profit_factor"],
+            "magic_number":    magic,
+            "comment":         ea_name,
+            "total_trades":    metrics["trade_count"],
+            "net_profit":      metrics["summary"]["total_net_profit"],
+            "win_rate":        metrics["summary"]["win_rate_pct"],
+            "profit_factor":   metrics["summary"]["profit_factor"],
             "max_drawdown_pct": metrics["summary"]["max_drawdown_pct"],
-            "sharpe_ratio": metrics["summary"]["sharpe_ratio"],
-            "date_range":   metrics["date_range"],
+            "sharpe_ratio":    metrics["summary"]["sharpe_ratio"],
+            "date_range":      metrics["date_range"],
         })
 
     return {"eas": summary, "total_eas": len(summary)}
@@ -86,6 +89,9 @@ async def get_ea_metrics(
         )
 
     metrics = compute_all_metrics(df, initial_balance=initial_balance)
+    # Nombre de la estrategia desde el comment
+    comments = df["comment"].dropna()
+    metrics["ea_name"] = comments.iloc[0] if len(comments) > 0 else f"EA {magic_number}"
     metrics["magic_number"] = magic_number
     metrics["symbol_filter"] = symbol
 

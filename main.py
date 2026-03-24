@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks   # ← BackgroundTasks agregado
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
 from datetime import datetime
 from typing import Optional
@@ -13,9 +14,6 @@ from metrics.scheduler import on_new_trade
 
 # ─────────────────────────────────────────────
 # LOGGING
-# Configura el sistema de logs. En vez de usar print(),
-# usamos logging porque nos da timestamp, nivel de severidad,
-# y en el futuro podemos redirigir a archivos fácilmente.
 # ─────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -26,8 +24,6 @@ logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
 # CONFIGURACIÓN DE BASE DE DATOS
-# Centralizada aquí para cambiarla en un solo lugar.
-# Más adelante esto vendrá de variables de entorno (.env)
 # ─────────────────────────────────────────────
 DB_CONFIG = {
     "dbname":   "algotracker_db",
@@ -43,17 +39,11 @@ def get_conn():
 
 # ─────────────────────────────────────────────
 # MODELO DE DATOS (Pydantic)
-# Esto reemplaza el `trade: dict` que teníamos antes.
-# Pydantic valida automáticamente que los tipos sean correctos
-# ANTES de que el dato llegue a la base de datos.
-# Si falta un campo obligatorio o el tipo es incorrecto,
-# FastAPI devuelve un 422 con el error exacto, no un 500.
 # ─────────────────────────────────────────────
 class TradeIn(BaseModel):
-    # Campos obligatorios (si no vienen, FastAPI rechaza con 422)
     ticket:      int
     symbol:      str
-    order_type:  str        = Field(..., pattern="^(BUY|SELL)$")  # solo acepta BUY o SELL
+    order_type:  str        = Field(..., pattern="^(BUY|SELL)$")
     volume:      float
     open_price:  float
     close_price: float
@@ -61,20 +51,17 @@ class TradeIn(BaseModel):
     close_time:  datetime
     profit:      float
 
-    # Campos opcionales (pueden no venir desde MT5)
     stop_loss:    Optional[float]   = None
     take_profit:  Optional[float]   = None
     commission:   Optional[float]   = None
     swap:         Optional[float]   = None
     magic_number: Optional[int]     = None
     comment:      Optional[str]     = None
-    
+
     @validator("comment", pre=True, always=True)
     def empty_string_to_none(cls, v):
         return None if (v == "" or v is None) else v
 
-    # Validación personalizada: order_type siempre en mayúsculas
-    # Por si MT5 envía "buy" en minúsculas
     @validator("order_type", pre=True)
     def uppercase_order_type(cls, v):
         return v.upper()
@@ -89,7 +76,14 @@ app = FastAPI(
     version="0.2.0"
 )
 
-# Registrar endpoints de métricas: /metrics/summary, /metrics/{magic}, etc.
+# CORS: permite que React en localhost:3000 llame al backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(metrics_router, prefix="/metrics", tags=["metrics"])
 
 
@@ -98,11 +92,11 @@ app.include_router(metrics_router, prefix="/metrics", tags=["metrics"])
 # ─────────────────────────────────────────────
 @app.post("/trade", status_code=201)
 def receive_trade(trade: TradeIn, background_tasks: BackgroundTasks):
-    """
-    Recibe un trade cerrado desde MT5 y lo persiste en trades_raw.
-    Luego actualiza las métricas del EA en background (sin bloquear la respuesta).
-    """
+    """Recibe un trade cerrado desde MT5 y lo persiste en trades_raw."""
     logger.info(f"Trade recibido | ticket={trade.ticket} | symbol={trade.symbol} | profit={trade.profit}")
+
+    conn   = None   # ← inicializar aquí para que finally no falle si get_conn() lanza
+    cursor = None   # ← ídem
 
     try:
         conn   = get_conn()
@@ -124,14 +118,12 @@ def receive_trade(trade: TradeIn, background_tasks: BackgroundTasks):
             )
             RETURNING id;
         """, trade.dict())
-        # RETURNING id → PostgreSQL nos devuelve el id asignado al nuevo registro
 
         new_id = cursor.fetchone()[0]
         conn.commit()
 
         logger.info(f"Trade guardado correctamente | id={new_id} | ticket={trade.ticket}")
 
-        # Actualizar métricas del EA en background (no bloquea la respuesta a MT5)
         if trade.magic_number:
             background_tasks.add_task(on_new_trade, trade.magic_number)
 
@@ -142,26 +134,20 @@ def receive_trade(trade: TradeIn, background_tasks: BackgroundTasks):
         }
 
     except psycopg2.Error as e:
-        # Error específico de PostgreSQL
         logger.error(f"Error de base de datos | ticket={trade.ticket} | error={e}")
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     except Exception as e:
-        # Cualquier otro error inesperado
         logger.error(f"Error inesperado | {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
     finally:
-        # El bloque finally SIEMPRE se ejecuta, haya error o no.
-        # Garantiza que la conexión se cierra aunque el INSERT falle.
         if cursor: cursor.close()
         if conn:   conn.close()
 
 
 # ─────────────────────────────────────────────
 # HEALTH CHECK
-# Endpoint simple para verificar que el servidor está vivo.
-# MT5 o un monitor externo puede llamarlo periódicamente.
 # ─────────────────────────────────────────────
 @app.get("/health")
 def health_check():
