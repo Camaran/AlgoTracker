@@ -68,7 +68,7 @@ function TradeCalendar({ trades }) {
   const byDay = {};
   trades.forEach(t => {
     const d = new Date(t.close_time || t.open_time);
-    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!byDay[key]) byDay[key] = { profit: 0, count: 0 };
     byDay[key].profit += parseFloat(t.profit || 0);
     byDay[key].count++;
@@ -104,8 +104,8 @@ function TradeCalendar({ trades }) {
       <div className="calendar-grid">
         {days.map(d => <div key={d} className="cal-header">{d}</div>)}
         {cells.map((day, i) => {
-          if (!day) return <div key={`e${i}`} className="cal-day empty"/>;
-          const key = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          if (!day) return <div key={`e${i}`} className="cal-day empty" />;
+          const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const data = byDay[key];
           const cls = data ? (data.profit >= 0 ? 'profit' : 'loss') : '';
           return (
@@ -124,21 +124,21 @@ function TradeCalendar({ trades }) {
 }
 
 export default function EADetail() {
-  const { magic } = useParams();
-  const navigate  = useNavigate();
+  const { magic, account_id } = useParams();
+  const navigate = useNavigate();
 
-  const [metrics,  setMetrics]  = useState(null);
-  const [equity,   setEquity]   = useState([]);
-  const [symbols,  setSymbols]  = useState({});
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(null);
+  const [metrics, setMetrics] = useState(null);
+  const [equity, setEquity] = useState([]);
+  const [symbols, setSymbols] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      getEAMetrics(magic),
-      getEquityCurve(magic),
-      getBySymbol(magic),
+      getEAMetrics(magic, account_id),
+      getEquityCurve(magic, account_id),
+      getBySymbol(magic, account_id),
     ]).then(([m, e, s]) => {
       setMetrics(m.data);
       setEquity(e.data.equity_curve || []);
@@ -150,11 +150,11 @@ export default function EADetail() {
     });
   }, [magic]);
 
-  if (loading) return <div className="loading"><div className="spinner"/> Cargando estrategia...</div>;
-  if (error)   return <div className="error-box">❌ {error}</div>;
+  if (loading) return <div className="loading"><div className="spinner" /> Cargando estrategia...</div>;
+  if (error) return <div className="error-box">❌ {error}</div>;
   if (!metrics) return null;
 
-  const s   = metrics.summary || {};
+  const s = metrics.summary || {};
   const adv = metrics.advanced || {};
   const name = metrics.ea_name || `EA ${magic}`;
 
@@ -186,7 +186,7 @@ export default function EADetail() {
           <div className="detail-magic">magic number: {magic}</div>
         </div>
         <div style={{ textAlign: 'right', fontSize: 12, color: '#64748b' }}>
-          <div>{metrics.date_range?.from?.slice(0,10)} → {metrics.date_range?.to?.slice(0,10)}</div>
+          <div>{metrics.date_range?.from?.slice(0, 10)} → {metrics.date_range?.to?.slice(0, 10)}</div>
           <div style={{ marginTop: 4 }}>{metrics.trade_count} operaciones totales</div>
         </div>
       </div>
@@ -194,37 +194,37 @@ export default function EADetail() {
       {/* Stat cards */}
       <div className="stats-row" style={{ marginBottom: 28 }}>
         <MetricCard label="PnL Neto"
-          value={`${(s.total_net_profit||0)>=0?'+':''}$${fmt(s.total_net_profit)}`}
-          sub={`Retorno: ${fmt(s.return_pct,2)}%`}
+          value={`${(s.total_net_profit || 0) >= 0 ? '+' : ''}$${fmt(s.total_net_profit)}`}
+          sub={`Retorno: ${fmt(s.return_pct, 2)}%`}
           color={pnlColor(s.total_net_profit)} />
         <MetricCard label="Expectativa"
           value={`$${fmt(adv.expectancy)}`}
           sub="por trade"
           color={pnlColor(adv.expectancy)} />
         <MetricCard label="Win Rate"
-          value={`${fmt(s.win_rate_pct,1)}%`}
+          value={`${fmt(s.win_rate_pct, 1)}%`}
           sub={`${s.winning_trades}W / ${s.losing_trades}L`}
-          color={s.win_rate_pct>=50?'green':s.win_rate_pct>=40?'':'red'} />
+          color={s.win_rate_pct >= 50 ? 'green' : s.win_rate_pct >= 40 ? '' : 'red'} />
         <MetricCard label="Profit Factor"
-          value={fmt(s.profit_factor,3)}
+          value={fmt(s.profit_factor, 3)}
           sub=">1.5 = sistema bueno"
-          color={s.profit_factor>=1.5?'green':s.profit_factor>=1?'':'red'} />
+          color={s.profit_factor >= 1.5 ? 'green' : s.profit_factor >= 1 ? '' : 'red'} />
         <MetricCard label="Max Drawdown"
-          value={`${fmt(s.max_drawdown_pct,2)}%`}
+          value={`${fmt(s.max_drawdown_pct, 2)}%`}
           sub={`-$${fmt(s.max_drawdown_usd)}`}
-          color={s.max_drawdown_pct<10?'green':s.max_drawdown_pct<20?'':'red'} />
+          color={s.max_drawdown_pct < 10 ? 'green' : s.max_drawdown_pct < 20 ? '' : 'red'} />
         <MetricCard label="Sharpe Ratio"
-          value={fmt(s.sharpe_ratio,4)}
+          value={fmt(s.sharpe_ratio, 4)}
           sub=">1 = bueno"
-          color={s.sharpe_ratio>1?'green':s.sharpe_ratio>0?'':'red'} />
+          color={s.sharpe_ratio > 1 ? 'green' : s.sharpe_ratio > 0 ? '' : 'red'} />
         <MetricCard label="Recovery Factor"
-          value={fmt(s.recovery_factor,3)}
+          value={fmt(s.recovery_factor, 3)}
           sub="profit/drawdown"
-          color={s.recovery_factor>1?'green':''} />
+          color={s.recovery_factor > 1 ? 'green' : ''} />
         <MetricCard label="Sortino Ratio"
-          value={fmt(s.sortino_ratio,4)}
+          value={fmt(s.sortino_ratio, 4)}
           sub="penaliza pérdidas"
-          color={s.sortino_ratio>1?'green':s.sortino_ratio>0?'':'red'} />
+          color={s.sortino_ratio > 1 ? 'green' : s.sortino_ratio > 0 ? '' : 'red'} />
       </div>
 
       {/* Equity curve */}
@@ -235,20 +235,20 @@ export default function EADetail() {
             <AreaChart data={equityData} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
               <defs>
                 <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#00d4a4" stopOpacity={0.25}/>
-                  <stop offset="95%" stopColor="#00d4a4" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="#00d4a4" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#00d4a4" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2d45" />
               <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickLine={false} axisLine={false}
-                     tickFormatter={v => `$${v.toLocaleString()}`} />
+                tickFormatter={v => `$${v.toLocaleString()}`} />
               <Tooltip
                 contentStyle={{ background: '#111827', border: '1px solid #1e2d45', borderRadius: 8, fontSize: 12 }}
                 formatter={v => [`$${fmt(v)}`, 'Equity']}
               />
               <Area type="monotone" dataKey="equity" stroke="#00d4a4" strokeWidth={2}
-                    fill="url(#eqGrad)" dot={false} />
+                fill="url(#eqGrad)" dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         ) : <div style={{ color: '#64748b', fontSize: 13, padding: 20 }}>Sin datos de equity curve</div>}
@@ -280,8 +280,8 @@ export default function EADetail() {
           <div className="wl-title red">▼ Perdedores</div>
           {[
             ['Total perdedores', s.losing_trades],
-            ['Peor pérdida', `-$${fmt(Math.abs(s.worst_trade||0))}`],
-            ['Pérdida media', `-$${fmt(Math.abs(s.avg_loss||0))}`],
+            ['Peor pérdida', `-$${fmt(Math.abs(s.worst_trade || 0))}`],
+            ['Pérdida media', `-$${fmt(Math.abs(s.avg_loss || 0))}`],
             ['Racha máx. perdedora', `${adv.max_consecutive_losses || '—'} trades`],
           ].map(([k, v]) => (
             <div className="wl-row" key={k}>
@@ -305,11 +305,11 @@ export default function EADetail() {
                 <tr key={month}>
                   <td>{month}</td>
                   <td>{data.count || '—'}</td>
-                  <td style={{ color: (data.profit||0)>=0?'#00d4a4':'#ff4d6d', fontWeight:600 }}>
-                    {(data.profit||0)>=0?'+':''}${fmt(data.profit)}
+                  <td style={{ color: (data.profit || 0) >= 0 ? '#00d4a4' : '#ff4d6d', fontWeight: 600 }}>
+                    {(data.profit || 0) >= 0 ? '+' : ''}${fmt(data.profit)}
                   </td>
-                  <td style={{ color: (data.win_rate||0)>=50?'#00d4a4':'#ff4d6d' }}>
-                    {fmt(data.win_rate||0, 1)}%
+                  <td style={{ color: (data.win_rate || 0) >= 50 ? '#00d4a4' : '#ff4d6d' }}>
+                    {fmt(data.win_rate || 0, 1)}%
                   </td>
                 </tr>
               ))}

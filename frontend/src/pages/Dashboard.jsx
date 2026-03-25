@@ -1,225 +1,274 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { getSummary } from '../api/client';
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import api from "../api/client";
 
-const COLORS = ['#00d4a4', '#00a8ff', '#f5a623', '#ff4d6d', '#a78bfa', '#34d399'];
-
-function fmt(n, decimals = 2) {
-  if (n == null || isNaN(n)) return '—';
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+// ─── Badge de tipo de cuenta ────────────────────────────────────
+function AccountTypeBadge({ type, phase }) {
+  const label = phase || type || "—";
+  const color =
+    phase === "Fondeada"   ? "badge-funded"  :
+    phase?.startsWith("Fase") ? "badge-phase" :
+    type === "Propfirm"    ? "badge-propfirm" :
+    "badge-default";
+  return <span className={`account-badge ${color}`}>{label}</span>;
 }
 
-function pnlColor(v) {
-  if (v > 0) return 'green';
-  if (v < 0) return 'red';
-  return '';
-}
+// ─── Modal: Agregar Cuenta ───────────────────────────────────────
+function AddAccountModal({ onClose, onCreated }) {
+  const [form, setForm] = useState({
+    name: "", broker: "", type: "Propfirm",
+    platform: "MT5", phase: "", initial_balance: ""
+  });
+  const [loading, setLoading]   = useState(false);
+  const [newAccount, setNewAccount] = useState(null);
+  const [copied, setCopied]     = useState(false);
 
-export default function Dashboard() {
-  const [eas, setEas] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const handleChange = (e) => {
+    setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  };
 
-  useEffect(() => {
-    getSummary()
-      .then(r => { setEas(r.data.eas || []); setLoading(false); })
-      .catch(e => { setError(e.message); setLoading(false); });
-  }, []);
+  const handleSubmit = async () => {
+    if (!form.name.trim()) return;
+    setLoading(true);
+    try {
+      const payload = {
+        ...form,
+        initial_balance: parseFloat(form.initial_balance) || 0
+      };
+      const res = await api.post("/accounts", payload);
+      setNewAccount(res.data);
+      onCreated();
+    } catch (err) {
+      alert("Error creando cuenta: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (loading) return <div className="loading"><div className="spinner"/> Cargando métricas...</div>;
-  if (error)   return <div className="error-box">❌ Error conectando al backend: {error}<br/><small>Verifica que FastAPI esté corriendo en localhost:8000</small></div>;
-
-  // Totales globales
-  const totalProfit  = eas.reduce((s, e) => s + (e.net_profit || 0), 0);
-  const avgWinrate   = eas.length ? eas.reduce((s, e) => s + (e.win_rate || 0), 0) / eas.length : 0;
-  const avgPF        = eas.length ? eas.reduce((s, e) => s + (e.profit_factor || 0), 0) / eas.length : 0;
-  const totalTrades  = eas.reduce((s, e) => s + (e.total_trades || 0), 0);
-
-  // Donut data
-  const donutData = eas
-    .filter(e => e.total_trades > 0)
-    .map(e => ({ name: e.comment || `EA ${e.magic_number}`, value: e.total_trades }));
-
-  // Top performers
-  const topPerformers = [...eas].sort((a, b) => (b.net_profit || 0) - (a.net_profit || 0)).slice(0, 3);
+  const copyKey = () => {
+    navigator.clipboard.writeText(newAccount.api_key);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>{newAccount ? "¡Cuenta creada!" : "Agregar Cuenta MT5"}</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        {newAccount ? (
+          <div className="modal-success">
+            <div className="success-icon">✓</div>
+            <p className="success-msg">
+              <strong>{newAccount.name}</strong> fue registrada correctamente.
+            </p>
+            <p className="key-label">Copia tu API Key y pégala en el parámetro <code>InpApiKey</code> del EA:</p>
+            <div className="api-key-box">
+              <code className="api-key-text">{newAccount.api_key}</code>
+              <button className="copy-btn" onClick={copyKey}>
+                {copied ? "✓ Copiado" : "Copiar"}
+              </button>
+            </div>
+            <p className="key-warning">
+              ⚠ Esta es la única vez que se muestra completa. Guárdala en un lugar seguro.
+            </p>
+            <button className="btn-primary" onClick={onClose}>Listo</button>
+          </div>
+        ) : (
+          <div className="modal-form">
+            <div className="form-row">
+              <label>Nombre de la cuenta *</label>
+              <input name="name" placeholder="Ej: FTMO Cuenta 1" value={form.name} onChange={handleChange} />
+            </div>
+            <div className="form-row-2col">
+              <div className="form-row">
+                <label>Plataforma</label>
+                <select name="platform" value={form.platform} onChange={handleChange}>
+                  <option>MT5</option>
+                  <option>MT4</option>
+                </select>
+              </div>
+              <div className="form-row">
+                <label>Tipo</label>
+                <select name="type" value={form.type} onChange={handleChange}>
+                  <option value="Propfirm">Propfirm</option>
+                  <option value="Broker">Broker</option>
+                  <option value="Personal">Personal</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-row-2col">
+              <div className="form-row">
+                <label>Broker / Propfirm</label>
+                <input name="broker" placeholder="Ej: FTMO, Pepperstone" value={form.broker} onChange={handleChange} />
+              </div>
+              <div className="form-row">
+                <label>Fase</label>
+                <input name="phase" placeholder="Ej: Fase 1, Fondeada" value={form.phase} onChange={handleChange} />
+              </div>
+            </div>
+            <div className="form-row">
+              <label>Balance inicial</label>
+              <input name="initial_balance" type="number" placeholder="100000" value={form.initial_balance} onChange={handleChange} />
+            </div>
+            <div className="modal-actions">
+              <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+              <button className="btn-primary" onClick={handleSubmit} disabled={loading || !form.name.trim()}>
+                {loading ? "Guardando…" : "Crear cuenta"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Card de cuenta ──────────────────────────────────────────────
+function AccountCard({ account }) {
+  const navigate = useNavigate();
+  const pnl      = parseFloat(account.net_profit || 0);
+  const pnlPos   = pnl >= 0;
+
+  return (
+    <div className="account-card" onClick={() => navigate(`/cuenta/${account.id}`)}>
+      <div className="ac-header">
+        <div>
+          <div className="ac-name">{account.name}</div>
+          <div className="ac-broker">{account.broker || "—"}</div>
+        </div>
+        <AccountTypeBadge type={account.type} phase={account.phase} />
+      </div>
+
+      <div className="ac-balance">
+        <span className="ac-balance-label">Balance inicial</span>
+        <span className="ac-balance-value">
+          ${parseFloat(account.initial_balance || 0).toLocaleString("es-CO", { minimumFractionDigits: 0 })}
+        </span>
+      </div>
+
+      <div className="ac-metrics">
+        <div className="ac-metric">
+          <span className="ac-metric-label">PnL neto</span>
+          <span className={`ac-metric-value ${pnlPos ? "positive" : "negative"}`}>
+            {pnlPos ? "+" : ""}${pnl.toFixed(2)}
+          </span>
+        </div>
+        <div className="ac-metric">
+          <span className="ac-metric-label">Winrate</span>
+          <span className="ac-metric-value">{account.winrate ?? "—"}%</span>
+        </div>
+        <div className="ac-metric">
+          <span className="ac-metric-label">Prof. Factor</span>
+          <span className="ac-metric-value">{account.profit_factor ?? "—"}</span>
+        </div>
+        <div className="ac-metric">
+          <span className="ac-metric-label">Operaciones</span>
+          <span className="ac-metric-value">{account.total_trades ?? 0}</span>
+        </div>
+      </div>
+
+      <button className="ac-btn-detail">Ver cuenta →</button>
+    </div>
+  );
+}
+
+// ─── Dashboard principal ─────────────────────────────────────────
+export default function Dashboard() {
+  const [accounts,    setAccounts]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [showModal,   setShowModal]   = useState(false);
+
+  const fetchAccounts = useCallback(async () => {
+    try {
+      const res = await api.get("/accounts");
+      setAccounts(res.data);
+    } catch (err) {
+      console.error("Error cargando cuentas:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+
+  // Métricas globales consolidadas
+  const globalMetrics = accounts.reduce(
+    (acc, a) => ({
+      totalProfit:  acc.totalProfit  + parseFloat(a.net_profit   || 0),
+      totalTrades:  acc.totalTrades  + parseInt(a.total_trades   || 0),
+      winrateSum:   acc.winrateSum   + parseFloat(a.winrate      || 0),
+      pfSum:        acc.pfSum        + parseFloat(a.profit_factor || 0),
+      pfCount:      acc.pfCount      + (a.profit_factor != null ? 1 : 0),
+    }),
+    { totalProfit: 0, totalTrades: 0, winrateSum: 0, pfSum: 0, pfCount: 0 }
+  );
+  const avgWinrate = accounts.length ? (globalMetrics.winrateSum / accounts.length).toFixed(1) : "—";
+  const avgPF      = globalMetrics.pfCount ? (globalMetrics.pfSum / globalMetrics.pfCount).toFixed(2) : "—";
+
+  return (
+    <div className="page dashboard-page">
+      {/* Header */}
       <div className="page-header">
-        <h1 className="page-title">Dashboard de Estrategias</h1>
-        <p className="page-subtitle">Vista general del rendimiento de todos tus EAs en tiempo real</p>
+        <div>
+          <h1 className="page-title">Dashboard</h1>
+          <p className="page-subtitle">Vista consolidada de todas tus cuentas</p>
+        </div>
+        <button className="btn-primary" onClick={() => setShowModal(true)}>
+          + Agregar Cuenta
+        </button>
       </div>
 
-      {/* Stats row */}
-      <div className="stats-row">
-        <div className="stat-card">
-          <div className="stat-label">PnL Total</div>
-          <div className={`stat-value ${pnlColor(totalProfit)}`}>
-            {totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}
-          </div>
-          <div className="stat-change">Todas las estrategias</div>
-          <div className="stat-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-              <polyline points="17 6 23 6 23 12"/>
-            </svg>
-          </div>
+      {/* Cards globales */}
+      <div className="global-cards">
+        <div className="global-card">
+          <span className="gc-label">PnL Total</span>
+          <span className={`gc-value ${globalMetrics.totalProfit >= 0 ? "positive" : "negative"}`}>
+            {globalMetrics.totalProfit >= 0 ? "+" : ""}
+            ${globalMetrics.totalProfit.toFixed(2)}
+          </span>
         </div>
-
-        <div className="stat-card">
-          <div className="stat-label">Total Trades</div>
-          <div className="stat-value">{totalTrades}</div>
-          <div className="stat-change">{eas.length} estrategias activas</div>
-          <div className="stat-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-            </svg>
-          </div>
+        <div className="global-card">
+          <span className="gc-label">Operaciones</span>
+          <span className="gc-value">{globalMetrics.totalTrades}</span>
         </div>
-
-        <div className="stat-card">
-          <div className="stat-label">Winrate Promedio</div>
-          <div className={`stat-value ${avgWinrate >= 50 ? 'green' : avgWinrate >= 40 ? '' : 'red'}`}>
-            {fmt(avgWinrate, 1)}%
-          </div>
-          <div className="stat-change">Promedio de todos los EAs</div>
-          <div className="stat-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-          </div>
+        <div className="global-card">
+          <span className="gc-label">Winrate prom.</span>
+          <span className="gc-value">{avgWinrate}%</span>
         </div>
-
-        <div className="stat-card">
-          <div className="stat-label">Profit Factor Prom.</div>
-          <div className={`stat-value ${avgPF >= 1.5 ? 'green' : avgPF >= 1 ? '' : 'red'}`}>
-            {fmt(avgPF, 3)}
-          </div>
-          <div className="stat-change">&gt;1.5 = sistema bueno</div>
-          <div className="stat-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-            </svg>
-          </div>
+        <div className="global-card">
+          <span className="gc-label">Profit Factor prom.</span>
+          <span className="gc-value">{avgPF}</span>
         </div>
       </div>
 
-      {/* EA Cards */}
-      <div className="ea-grid">
-        {eas.map((ea, i) => {
-          const name = ea.comment || `EA ${ea.magic_number}`;
-          const pnl  = ea.net_profit || 0;
-          const wr   = ea.win_rate   || 0;
-          const pf   = ea.profit_factor || 0;
-          const good = pnl > 0 && pf >= 1;
-
-          return (
-            <Link to={`/ea/${ea.magic_number}`} className="ea-card" key={ea.magic_number}>
-              <div className="ea-card-header">
-                <div>
-                  <div className="ea-name">{name}</div>
-                  <div className="ea-magic">magic: {ea.magic_number}</div>
-                </div>
-                <span className={`ea-badge ${good ? '' : 'red'}`}>
-                  {good ? '▲ activo' : '▼ revisar'}
-                </span>
-              </div>
-
-              <div className="ea-metrics">
-                <div className="ea-metric-item">
-                  <div className="ea-metric-label">PnL Neto</div>
-                  <div className={`ea-metric-value ${pnlColor(pnl)}`}>
-                    {pnl >= 0 ? '+' : ''}${fmt(pnl)}
-                  </div>
-                </div>
-                <div className="ea-metric-item">
-                  <div className="ea-metric-label">Win Rate</div>
-                  <div className={`ea-metric-value ${wr >= 50 ? 'green' : wr >= 40 ? '' : 'red'}`}>
-                    {fmt(wr, 1)}%
-                  </div>
-                </div>
-                <div className="ea-metric-item">
-                  <div className="ea-metric-label">Profit Factor</div>
-                  <div className={`ea-metric-value ${pf >= 1.5 ? 'green' : pf >= 1 ? '' : 'red'}`}>
-                    {fmt(pf, 3)}
-                  </div>
-                </div>
-                <div className="ea-metric-item">
-                  <div className="ea-metric-label">Max DD</div>
-                  <div className={`ea-metric-value ${(ea.max_drawdown_pct || 0) < 10 ? 'green' : 'red'}`}>
-                    {fmt(ea.max_drawdown_pct || 0, 1)}%
-                  </div>
-                </div>
-              </div>
-
-              <div className="ea-footer">
-                <span className="ea-ops">{ea.total_trades} operaciones</span>
-                <span className="btn-ver">Ver EA →</span>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* Charts */}
-      <div className="charts-row">
-        <div className="chart-card">
-          <div className="chart-title">Distribución de Operaciones</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={donutData} cx="50%" cy="50%" innerRadius={60} outerRadius={90}
-                   dataKey="value" paddingAngle={3}>
-                {donutData.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{ background: '#111827', border: '1px solid #1e2d45', borderRadius: 8, fontSize: 12 }}
-                formatter={(v, n) => [`${v} trades`, n]}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: 8 }}>
-            {donutData.map((d, i) => (
-              <span key={i} style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[i % COLORS.length], display: 'inline-block' }}/>
-                {d.name}
-              </span>
-            ))}
-          </div>
+      {/* Grid de cuentas */}
+      {loading ? (
+        <div className="loading-state">Cargando cuentas…</div>
+      ) : accounts.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">📊</div>
+          <h3>Sin cuentas registradas</h3>
+          <p>Agrega tu primera cuenta MT5 para comenzar a trackear tus estrategias.</p>
+          <button className="btn-primary" onClick={() => setShowModal(true)}>
+            + Agregar Cuenta
+          </button>
         </div>
-
-        <div className="chart-card">
-          <div className="chart-title">Top Performers</div>
-          {topPerformers.map((ea, i) => {
-            const pnl = ea.net_profit || 0;
-            const medals = ['🥇', '🥈', '🥉'];
-            return (
-              <div key={ea.magic_number} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '14px 0', borderBottom: i < 2 ? '1px solid #1e2d45' : 'none'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 20 }}>{medals[i]}</span>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
-                      {ea.comment || `EA ${ea.magic_number}`}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#64748b' }}>{ea.total_trades} ops</div>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: pnl >= 0 ? '#00d4a4' : '#ff4d6d' }}>
-                    {pnl >= 0 ? '+' : ''}${fmt(pnl)}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>WR: {fmt(ea.win_rate || 0, 1)}%</div>
-                </div>
-              </div>
-            );
-          })}
+      ) : (
+        <div className="accounts-grid">
+          {accounts.map(a => <AccountCard key={a.id} account={a} />)}
         </div>
-      </div>
+      )}
+
+      {showModal && (
+        <AddAccountModal
+          onClose={() => setShowModal(false)}
+          onCreated={() => { fetchAccounts(); }}
+        />
+      )}
     </div>
   );
 }

@@ -5,12 +5,12 @@ const API = axios.create({
   timeout: 10000,
 });
 
-export const getSummary = () => API.get('/metrics/summary');
-export const getEAMetrics = (magic) => API.get(`/metrics/${magic}`);
-export const getEquityCurve = (magic, balance = 10000) =>
-  API.get(`/metrics/${magic}/equity?initial_balance=${balance}`);
-export const getBySymbol = (magic) => API.get(`/metrics/${magic}/by-symbol`);
-export const getTimeAnalysis = (magic) => API.get(`/metrics/${magic}/time-analysis`);
-export const getTrades = () => API.get('/trades_raw'); // endpoint directo a BD si lo agregas
+export const getSummary = (account_id) => API.get(`/metrics/summary${account_id ? `?account_id=${account_id}` : ''}`);
+export const getEAMetrics = (magic, account_id) => API.get(`/metrics/${magic}?account_id=${account_id}`);
+export const getEquityCurve = (magic, account_id, balance = 10000) =>
+  API.get(`/metrics/${magic}/equity?initial_balance=${balance}&account_id=${account_id}`);
+export const getBySymbol = (magic, account_id) => API.get(`/metrics/${magic}/by-symbol?account_id=${account_id}`);
+export const getTimeAnalysis = (magic, account_id) => API.get(`/metrics/${magic}/time-analysis?account_id=${account_id}`);
+export const getTrades = () => API.get('/trades_raw');
 
 export default API;
