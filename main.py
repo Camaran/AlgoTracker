@@ -8,6 +8,7 @@ import psycopg2.extras
 import secrets
 import logging
 import traceback
+import os
 
 # Motor de métricas
 from metrics.routes import router as metrics_router
@@ -27,11 +28,11 @@ logger = logging.getLogger(__name__)
 # CONFIGURACIÓN DE BASE DE DATOS
 # ─────────────────────────────────────────────
 DB_CONFIG = {
-    "dbname":   "algotracker_db",
-    "user":     "algotracker_user",
-    "password": "Aa1073162355",
-    "host":     "localhost",
-    "port":     "5432"
+    "dbname":   os.getenv("DB_NAME",     "algotracker_db"),
+    "user":     os.getenv("DB_USER",     "algotracker_user"),
+    "password": os.getenv("DB_PASSWORD", "Aa1073162355"),
+    "host":     os.getenv("DB_HOST",     "localhost"),
+    "port":     os.getenv("DB_PORT",     "5432"),
 }
 
 def get_conn():

@@ -1,0 +1,19 @@
+# ── Frontend — React ───────────────────────────────────────────
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copiar dependencias primero (cache de Docker)
+COPY package.json package-lock.json* ./
+RUN npm install
+
+# Copiar el código fuente
+COPY . .
+
+# Puerto del frontend
+EXPOSE 3000
+
+# Variable para que React acepte conexiones externas
+ENV CHOKIDAR_USEPOLLING=true
+
+CMD ["npm", "start"]
