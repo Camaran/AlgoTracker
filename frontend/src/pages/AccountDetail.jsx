@@ -22,12 +22,12 @@ function EquityTooltip({ active, payload, label }) {
 // ─── Card de estrategia / EA ─────────────────────────────────────
 function StrategyCard({ strategy, accountId }) {
   const navigate = useNavigate();
-  const pnl      = parseFloat(strategy.total_profit || 0);
+  const pnl = parseFloat(strategy.total_profit || 0);
 
   return (
     <div
       className="strategy-card"
-      onClick={() => navigate(`/ea/${accountId}/${strategy.magic_number}`)}
+      onClick={() => navigate(`/ea/${accountId}/${strategy.magic_number ?? 0}`)}
     >
       <div className="sc-header">
         <div className="sc-magic">Magic #{strategy.magic_number ?? "0"}</div>
@@ -53,11 +53,11 @@ function StrategyCard({ strategy, accountId }) {
 // ─── Página principal ────────────────────────────────────────────
 export default function AccountDetail() {
   const { account_id } = useParams();
-  const navigate        = useNavigate();
+  const navigate = useNavigate();
 
-  const [account,  setAccount]  = useState(null);
-  const [equity,   setEquity]   = useState([]);
-  const [loading,  setLoading]  = useState(true);
+  const [account, setAccount] = useState(null);
+  const [equity, setEquity] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -114,7 +114,7 @@ export default function AccountDetail() {
           <h1 className="page-title">{account.name}</h1>
           <p className="page-subtitle">
             {account.broker && <span>{account.broker}</span>}
-            {account.phase  && <span> · {account.phase}</span>}
+            {account.phase && <span> · {account.phase}</span>}
             {account.platform && <span> · {account.platform}</span>}
           </p>
         </div>

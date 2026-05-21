@@ -69,6 +69,7 @@ async def get_ea_metrics(
     date_from:  Optional[datetime] = Query(None),
     date_to:    Optional[datetime] = Query(None),
     initial_balance: float         = Query(10_000.0, description="Capital inicial del EA"),
+    account_id: Optional[int]      = Query(None),
 ):
     """
     Todas las métricas de un EA específico.
@@ -109,6 +110,7 @@ async def get_equity_curve(
     date_from:       Optional[datetime] = Query(None),
     date_to:         Optional[datetime] = Query(None),
     initial_balance: float              = Query(10_000.0),
+    account_id: Optional[int] = Query(None),
 ):
     """
     Solo la curva de equity (optimizado para gráficos).
@@ -144,6 +146,7 @@ async def get_metrics_by_symbol(
     date_from:       Optional[datetime] = Query(None),
     date_to:         Optional[datetime] = Query(None),
     initial_balance: float              = Query(10_000.0),
+    account_id: Optional[int] = Query(None),
 ):
     """
     Métricas desglosadas por símbolo para un EA.
@@ -182,6 +185,7 @@ async def get_time_analysis(
     magic_number: int,
     date_from: Optional[datetime] = Query(None),
     date_to:   Optional[datetime] = Query(None),
+    account_id: Optional[int] = Query(None),
 ):
     """
     Análisis temporal: rendimiento por hora, día, mes.
