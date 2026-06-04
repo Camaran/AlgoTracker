@@ -11,6 +11,6 @@ export const getEquityCurve = (magic, account_id, balance = 10000) =>
   API.get(`/metrics/${magic}/equity?initial_balance=${balance}&account_id=${account_id}`);
 export const getBySymbol = (magic, account_id) => API.get(`/metrics/${magic}/by-symbol?account_id=${account_id}`);
 export const getTimeAnalysis = (magic, account_id) => API.get(`/metrics/${magic}/time-analysis?account_id=${account_id}`);
-export const getTrades = () => API.get('/trades_raw');
+export const getTrades = (account_id, magic_number) => API.get(`/trades?${account_id ? `account_id=${account_id}` : ''}${magic_number !== undefined ? `&magic_number=${magic_number}` : ''}`);
 
 export default API;

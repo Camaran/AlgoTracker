@@ -4,7 +4,8 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell, ReferenceLine
 } from 'recharts';
-import { getEAMetrics, getEquityCurve, getBySymbol } from '../api/client';
+import { getEAMetrics, getEquityCurve, getBySymbol, getTrades } from '../api/client';
+import TradesTable from '../components/TradesTable';
 
 // ─── Helpers ────────────────────────────────────────────────────
 function fmt(n, d = 2) {
@@ -173,6 +174,7 @@ export default function EADetail() {
   const [symbols, setSymbols] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [trades, setTrades] = useState([]);
 
   useEffect(() => {
     setLoading(true);
@@ -180,10 +182,12 @@ export default function EADetail() {
       getEAMetrics(magic, account_id),
       getEquityCurve(magic, account_id),
       getBySymbol(magic, account_id),
-    ]).then(([m, e, s]) => {
+      getTrades(account_id, magic),
+    ]).then(([m, e, s, t]) => {
       setMetrics(m.data);
       setEquity(e.data.equity_curve || []);
       setSymbols(s.data.by_symbol || {});
+      setTrades(t.data || []);
       setLoading(false);
     }).catch(err => {
       setError(err.message);
@@ -300,6 +304,11 @@ export default function EADetail() {
             </ResponsiveContainer>
           ) : <p className="ed-empty">Sin datos de equity</p>}
         </div>
+      </Section>
+
+      {/* ── HISTORIAL DE TRADES ── */}
+      <Section title="Historial de Trades">
+        <TradesTable accountId={account_id} magicNumber={magic} />
       </Section>
 
       {/* ── DOS COLUMNAS: ratios avanzados + ganadores/perdedores ── */}

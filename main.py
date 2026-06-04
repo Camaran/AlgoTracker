@@ -389,7 +389,34 @@ def get_equity_curve(account_id: int):
     finally:
         if cursor: cursor.close()
         if conn:   conn.close()
+        
+# ─────────────────────────────────────────────
+# HISTORIAL TRADES TABLA
+# ─────────────────────────────────────────────
 
+@app.get("/trades", tags=["trades"])
+def get_trades(account_id: Optional[int] = None, magic_number: Optional[int] = None):
+    conn = None
+    cursor = None
+    try:
+        conn = get_conn()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        query = "SELECT * FROM trades_raw WHERE 1=1"
+        params = []
+        if account_id:
+            query += " AND account_id = %s"
+            params.append(account_id)
+        if magic_number is not None:
+            query += " AND magic_number = %s"
+            params.append(magic_number)
+        query += " ORDER BY close_time DESC LIMIT 500"
+        cursor.execute(query, params)
+        return [dict(r) for r in cursor.fetchall()]
+    except psycopg2.Error as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
 
 # ─────────────────────────────────────────────
 # HEALTH CHECK

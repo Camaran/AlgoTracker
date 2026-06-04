@@ -4,7 +4,8 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
 } from "recharts";
-import api from "../api/client";
+import api, { getTrades } from "../api/client";
+import TradesTable from "../components/TradesTable";
 
 // ─── Tooltip personalizado para la equity ───────────────────────
 function EquityTooltip({ active, payload, label }) {
@@ -58,22 +59,24 @@ export default function AccountDetail() {
   const [account, setAccount] = useState(null);
   const [equity, setEquity] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [trades, setTrades] = useState([]);
 
   useEffect(() => {
     const loadAll = async () => {
       try {
-        const [accRes, eqRes] = await Promise.all([
+        const [accRes, eqRes, trRes] = await Promise.all([
           api.get(`/accounts/${account_id}`),
-          api.get(`/accounts/${account_id}/equity`)
+          api.get(`/accounts/${account_id}/equity`),
+          getTrades(account_id),
         ]);
         setAccount(accRes.data);
 
-        // Formatear curva de equity para recharts
         const eqData = eqRes.data.map(row => ({
           date: new Date(row.date).toLocaleDateString("es-CO", { month: "short", day: "numeric" }),
           equity: parseFloat(row.cumulative_profit)
         }));
         setEquity(eqData);
+        setTrades(trRes.data || []);
       } catch (err) {
         console.error("Error cargando cuenta:", err);
       } finally {
@@ -183,6 +186,12 @@ export default function AccountDetail() {
           </div>
         </div>
       )}
+
+      {/* Historial de trades */}
+      <div className="section">
+        <h2 className="section-title">Historial de Trades</h2>
+        <TradesTable accountId={account_id} />
+      </div>
 
       {/* Estrategias */}
       <div className="section">

@@ -1,0 +1,1 @@
+docker compose -f C:\Users\JCambindoA\Desktop\AlgoTracker\docker-compose.yml up -d
